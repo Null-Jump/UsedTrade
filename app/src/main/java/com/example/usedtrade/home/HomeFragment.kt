@@ -63,12 +63,12 @@ class HomeFragment : Fragment(R.layout.fragment_home) {
         fragmentHomeBinding.articleRecyclerView.adapter = articleAdapter
 
         fragmentHomeBinding.addFloatingButton.setOnClickListener {
-            //if(auth.currentUser != null){
+            if(auth.currentUser != null){
                 val intent = Intent(requireContext(), AddArticleActivity::class.java)
                 startActivity(intent)
-           //}else{
+           }else{
                 Snackbar.make(view, "Please use it after logging in", Snackbar.LENGTH_LONG).show()
-            //}
+            }
 
             /* 위와 동일한 내용으로 어느 것을 사용해도 무관
             context?.let {

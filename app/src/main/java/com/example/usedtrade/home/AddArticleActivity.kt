@@ -6,12 +6,10 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Bundle
-import android.widget.Button
-import android.widget.EditText
-import android.widget.ImageView
-import android.widget.Toast
+import android.widget.*
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
+import androidx.core.view.isVisible
 import com.example.usedtrade.DBKey.Companion.DB_ARTICLES
 import com.example.usedtrade.R
 import com.google.firebase.auth.FirebaseAuth
@@ -57,7 +55,7 @@ class AddArticleActivity : AppCompatActivity() {
                 else -> { //교육용 팝업이 필요하지 않는 경우
                     requestPermissions(
                         arrayOf(android.Manifest.permission.READ_EXTERNAL_STORAGE),
-                        1000
+                        1010
                     )
                 }
             }
@@ -68,11 +66,49 @@ class AddArticleActivity : AppCompatActivity() {
             val price = findViewById<EditText>(R.id.priceEditText).text.toString()
             val sellerId = auth.currentUser?.uid.orEmpty()
 
-            val model = ArticleModel(sellerId, title, System.currentTimeMillis(), "${price}원", "")
-            articleDB.push().setValue(model)
+            showProgress()
+            //중간에 이미지를 업로드
+            if (selectedUri != null) {
+                val photoUri = selectedUri ?: return@setOnClickListener
+                uploadPhoto(photoUri,
+                    successHandler = { uri ->
+                        uploadArticle(sellerId, title, price, uri)
+                    }, errorHandler = {
+                        Toast.makeText(this, "Fail to upload image", Toast.LENGTH_SHORT).show()
+                        hideProgress()
+                    })
+            } else {
+                uploadArticle(sellerId, title, price, "")
+            }
 
-            finish()
+
         }
+    }
+
+    private fun uploadPhoto(uri: Uri, successHandler: (String) -> Unit, errorHandler: () -> Unit) {
+        val fileName = "${System.currentTimeMillis()}.png"
+        storage.reference.child("article/photo").child(fileName)
+            .putFile(uri)
+            .addOnCompleteListener {
+                if (it.isSuccessful) {
+                    storage.reference.child("article/photo").child(fileName).downloadUrl
+                        .addOnSuccessListener { uri ->
+                            successHandler(uri.toString())
+                        }.addOnFailureListener {
+                            errorHandler()
+                        }
+                } else {
+                    errorHandler()
+                }
+            }
+    }
+
+    private fun uploadArticle(sellerId: String, title: String, price: String, imageUrl: String) {
+        val model = ArticleModel(sellerId, title, System.currentTimeMillis(), "${price}원", imageUrl)
+        articleDB.push().setValue(model)
+
+        hideProgress()
+        finish()
     }
 
     override fun onRequestPermissionsResult(
@@ -83,7 +119,7 @@ class AddArticleActivity : AppCompatActivity() {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
 
         when (requestCode) {
-            1000 ->
+            1010 ->
                 if (grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
                     startContentProvider()
                 } else {
@@ -99,9 +135,17 @@ class AddArticleActivity : AppCompatActivity() {
         startActivityForResult(intent, 2020) // 대체된 것 공부 필요
     }
 
+    private fun showProgress(){
+        findViewById<ProgressBar>(R.id.progressBar).isVisible = true
+    }
+
+    private fun hideProgress(){
+        findViewById<ProgressBar>(R.id.progressBar).isVisible = false
+    }
+
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
-        if (requestCode != Activity.RESULT_OK) {
+        if (resultCode != Activity.RESULT_OK) {
             return
         }
         when (requestCode) {
